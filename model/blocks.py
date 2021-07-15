@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D,Dense,Layer,ReLU,LeakyReLU,GlobalAvgPool2D,UpSampling2D,LayerNormalization,Activation
-from tensorflow.keras import initializers
+from tensorflow_addons.layers import InstanceNormalization
 
 class ReflectionPadding2D(tf.keras.layers.Layer):
     def __init__(self, padding=(1, 1), **kwargs): #padding=(1,1) = 'same' if kernel size is 3
@@ -16,47 +16,35 @@ class ReflectionPadding2D(tf.keras.layers.Layer):
         return tf.pad(x, [[0,0], [h_pad,h_pad], [w_pad,w_pad], [0,0]], 'REFLECT')
 
 class AdaIN(Layer):
-    def __init__(self,in_channels,ep=1e-8):
+    def __init__(self,in_channels,ep=1e-5):
         super(AdaIN,self).__init__()
         self.params_num=in_channels*2
-        self.gamma=0
-        self.beta=0
+        self.gamma=None
+        self.beta=None
         self.ep=ep
 
     def call(self,x,training=False):
         '''
         x:(batch,h,w,c)
-        gamma、beta:(batch,1,1,c)
         '''
-        mean = tf.reduce_mean(x, keepdims=True, axis=[1, 2])  # batch,1,1,c
-        std = tf.math.reduce_std(x, keepdims=True, axis=[1, 2])  # batch,1,1,c
-        z = (x - mean) / (std + self.ep)
-        return self.gamma * z + self.beta
+        mean, var = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        return tf.nn.batch_normalization(x,mean,var,self.beta,self.gamma,self.ep)
 
-
+'''
 class Instance_norm(Layer):
     def __init__(self,ep=1e-8):
         super(Instance_norm,self).__init__()
         self.ep=ep
 
-    def build(self,input_shape):
-        self.gamma=self.add_weight(name='gamma',
-                                   shape=[1,1,int(input_shape[-1])],
-                                   initializer=initializers.RandomNormal(mean=0,stddev=1),
-                                   trainable=True)
-        self.beta=self.add_weight(name='beta',
-                                  shape=[1,1,int(input_shape[-1])],
-                                  initializer=initializers.RandomNormal(mean=0,stddev=1),
-                                  trainable=True)
-
     def call(self,x,training=False):
-        '''
-        x:(batch,h,w,c)
-        '''
+        
+        #x:(batch,h,w,c)
+        
         mean=tf.reduce_mean(x,keepdims=True,axis=[1,2]) #batch,1,1,c
         std=tf.math.reduce_std(x,keepdims=True,axis=[1,2]) #batch,1,1,c
         z=(x-mean)/(std+self.ep)
-        return self.gamma*z+self.beta
+        return z
+'''
 
 
 
@@ -73,8 +61,8 @@ class ResBlock(Layer):
             self.activation=LeakyReLU(alpha=0.2)
 
     def call(self,x,training=False):
-        out1=self.conv1(x)
-        out2=self.conv2(out1)
+        out1=self.conv1(x,training=training)
+        out2=self.conv2(out1,training=training)
         out2=out2+x
         return self.activation(out2)
 
@@ -87,22 +75,22 @@ class ConvBlock(Layer):
         self.padding=padding
         #padding method
         if padding=='valid':
-            self.conv=Conv2D(filters=out_channels,kernel_size=kernel_size,activation=None,padding=padding,strides=strides)
+            self.conv=Conv2D(filters=out_channels,kernel_size=kernel_size,activation=None,padding=padding,strides=strides,kernel_initializer=tf.keras.initializers.HeNormal())
         elif padding=='zeros':
-            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding=padding,strides=strides)
+            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding=padding,strides=strides,kernel_initializer=tf.keras.initializers.HeNormal())
         elif padding=='reflect':
             self.reflect=ReflectionPadding2D()
-            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides)
+            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides,kernel_initializer=tf.keras.initializers.HeNormal())
         elif padding=='reflect_2':
             self.reflect=ReflectionPadding2D((2,2))
-            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides)
+            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides,kernel_initializer=tf.keras.initializers.HeNormal())
         elif padding=='reflect_3':
             self.reflect=ReflectionPadding2D((3,3))
-            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides)
+            self.conv = Conv2D(filters=out_channels, kernel_size=kernel_size, activation=None, padding='valid',strides=strides,kernel_initializer=tf.keras.initializers.HeNormal())
 
         #normalization method
         if norm=='in':
-            self.norm=Instance_norm()
+            self.norm=InstanceNormalization(center=False,scale=False)
         elif norm=='adain':
             self.norm=AdaIN(out_channels)
         elif norm=='ln':
@@ -125,7 +113,7 @@ class ConvBlock(Layer):
             x=self.reflect(x)
         x=self.conv(x)
         if self.norm!=None:
-            x=self.norm(x)
+            x=self.norm(x,training=training)
         if self.activation!=None:
             x=self.activation(x)
         return x
