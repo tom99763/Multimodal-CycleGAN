@@ -10,9 +10,9 @@ class Generator(tf.keras.Model):
         self.decoder=Decoder(n_res=n_res)
         self.mlp=tf.keras.Sequential([
             Flatten(),
-            Dense(units=mlp_dim,activation='relu'),
-            Dense(units=mlp_dim, activation='relu'),
-            Dense(units=self.get_params_num(),activation=None)
+            Dense(units=mlp_dim,activation='relu',kernel_initializer=tf.keras.initializers.HeNormal()),
+            Dense(units=mlp_dim, activation='relu',kernel_initializer=tf.keras.initializers.HeNormal()),
+            Dense(units=self.get_params_num(),activation=None,kernel_initializer=tf.keras.initializers.HeNormal())
         ])
     def encode(self,x,training=False):
         return self.content_encoder(x,training=training),self.style_encoder(x,training=training)
@@ -63,7 +63,7 @@ class Discriminator(tf.keras.Model):
             ConvBlock(kernel_size=4, out_channels=128, norm='none', activation='leaky', padding='reflect', strides=2),
             ConvBlock(kernel_size=4, out_channels=256, norm='none', activation='leaky', padding='reflect', strides=2),
             ConvBlock(kernel_size=4, out_channels=512, norm='none', activation='leaky', padding='reflect', strides=2),
-            Conv2D(filters=1,kernel_size=1,strides=1,padding='valid',activation=None)
+            Conv2D(filters=1,kernel_size=1,strides=1,padding='valid',activation=None,kernel_initializer=tf.keras.initializers.HeNormal())
         ])
 
 '''
