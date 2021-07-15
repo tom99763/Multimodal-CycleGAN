@@ -7,20 +7,26 @@ recon_x_cyc_w=10
 beta1= 0.5                    # Adam parameter
 beta2=0.999
 lr=0.0001                    # initial learning rate
+step_size=100000
+gamma=0.5
 batch_size=1
-epochs=20
-image_display_epoch=1
-num_gen_img=10
-
+epochs=50
+image_display=200
+num_gen_img= 10
 style_code_dim=8
+n_dis_scale=3
 
 
-image_size=128
+image_size=256
 load_model=False
-train_x_pth='../data/train/cat/'
-train_y_pth='../data/train/face/'
-val_x_pth='../data/val/cat/'
-val_y_pth='../data/val/face/'
+train_x_pth='../../../data/gan/anime/train/trainA/'
+train_y_pth='../../../data/gan/anime/train/trainB/'
+val_x_pth='../../../data/gan/anime/test/testA/'
+val_y_pth='../../../data/gan/anime/test/testB/'
+seed_x=99763
+seed_y=33679
 save_pth='./save/train'
 res_pth='./res'
-shuffle=1000
+shuffle=10000
+
+
